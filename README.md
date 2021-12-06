@@ -1,0 +1,1 @@
+# optimized_uBlock_algorithm
