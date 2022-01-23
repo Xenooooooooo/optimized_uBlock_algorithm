@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <ctime>
 #include <immintrin.h>
+#include <string.h>
 
 unsigned char Subkey_1[17][32], Subkey_2[17][32], Subkey_3[17][32], Subkey_4[17][32];
 
@@ -367,6 +368,66 @@ inline int Crypt_Dec_Block(unsigned char *input_1, unsigned char *input_2, unsig
     return 0;
 }
 
+inline int Crypt_Enc_Block_CBC(unsigned char *input_1, unsigned char *input_2, unsigned char *input_3, unsigned char *input_4, int in_len, unsigned char *output_1, unsigned char *output_2, unsigned char *output_3, unsigned char *output_4, unsigned char *key_1, unsigned char *key_2, unsigned char *key_3, unsigned char *key_4)
+{
+    int g, j;
+    unsigned char iv_1[16] = {0};
+    unsigned char iv_2[16] = {0};
+    unsigned char iv_3[16] = {0};
+    unsigned char iv_4[16] = {0};
+
+    uBlock_128_KeySchedule(key_1, key_2, 0);
+    uBlock_128_KeySchedule(key_3, key_4, 1);
+
+    for (g = 0; g < in_len / 16; g++)
+    {
+        for(j = 0; j < 16; j++)
+        {
+            iv_1[j] ^= input_1[g * 16 + j];
+            iv_2[j] ^= input_2[g * 16 + j];
+            iv_3[j] ^= input_3[g * 16 + j];
+            iv_4[j] ^= input_4[g * 16 + j];
+        }
+        uBlock_128_Encrypt(iv_1, iv_2, output_2+g*16, output_1+g*16, iv_3, iv_4, output_4+g*16, output_3+g*16, 16);
+        memcpy(iv_1, output_1+g*16, 16);
+        memcpy(iv_2, output_2+g*16, 16);
+        memcpy(iv_3, output_3+g*16, 16);
+        memcpy(iv_4, output_4+g*16, 16);
+    }
+
+    return 0;
+}
+
+inline int Crypt_Dec_Block_CBC(unsigned char *input_1, unsigned char *input_2, unsigned char *input_3, unsigned char *input_4, int in_len, unsigned char *output_1, unsigned char *output_2, unsigned char *output_3, unsigned char *output_4, unsigned char *key_1, unsigned char *key_2, unsigned char *key_3, unsigned char *key_4)
+{
+    int g, j;
+    unsigned char iv_1[16] = {0};
+    unsigned char iv_2[16] = {0};
+    unsigned char iv_3[16] = {0};
+    unsigned char iv_4[16] = {0};
+
+    uBlock_128_KeySchedule(key_1, key_2, 0);
+    uBlock_128_KeySchedule(key_3, key_4, 1);
+
+    for (g = 0; g < in_len / 16; g++)
+    {
+        uBlock_128_Decrypt(input_1+g*16, input_2+g*16, output_2+g*16, output_1+g*16, input_3+g*16, input_4+g*16, output_4+g*16, output_3+g*16, 16);
+        for(j = 0; j < 16; j++)
+        {
+            output_1[g * 16 + j] ^= iv_1[j];
+            output_2[g * 16 + j] ^= iv_2[j];
+            output_3[g * 16 + j] ^= iv_3[j];
+            output_4[g * 16 + j] ^= iv_4[j];
+        }
+        memcpy(iv_1, input_1+g*16, 16);
+        memcpy(iv_2, input_2+g*16, 16);
+        memcpy(iv_3, input_3+g*16, 16);
+        memcpy(iv_4, input_4+g*16, 16);
+    }
+
+    return 0;
+}
+
 void print(unsigned char *input_1, unsigned char *input_2, unsigned char *input_3, unsigned char *input_4, int len)
 {
     int i;
@@ -408,10 +469,11 @@ int main()
 
     int r, i;
 
-/////////////-----------------------------///////////////// (1 + 1) * n short text test
-
     uint op, ed;
     double times, total = 0;
+
+/////////////-----------------------------///////////////// (1 + 1) * n short text test
+
     uint total_bits = 1280000000;
     printf("10000000-round-Encryption:\n");
     for(i = 0; i < 10; i++)
@@ -469,7 +531,7 @@ int main()
 
     printf("\nlong-text-Encryption average speed: %f mbps\n\n", total / 10);
 
-    print(long_cipher_1, long_cipher_2, long_cipher_3, long_cipher_4, 32);
+    print(long_cipher_1, long_cipher_2, long_cipher_3, long_cipher_4, 64);
 
     total = 0;
 
@@ -489,7 +551,47 @@ int main()
 
     printf("\nlong-text-Decryption average speed: %f mbps\n\n", total / 10);
 
-    print(long_plain_1, long_plain_2, long_plain_3, long_plain_4, 32);
+    print(long_plain_1, long_plain_2, long_plain_3, long_plain_4, 64);
+
+    total = 0;
+
+/////////////------------CBC long text test----------/////////////////
+
+    printf("\n\nCBC-Encryption:\n");
+    for(i = 0; i < 10; i ++)
+    {
+        op = clock();
+        for(r = 0; r < 1024; r ++)
+            Crypt_Enc_Block_CBC(long_plain_1, long_plain_2, long_plain_3, long_plain_4, 262144, long_cipher_1, long_cipher_2, long_cipher_3, long_cipher_4, key_1, key_2, key_3, key_4);
+        ed = clock();
+        times = (double)(ed - op) / CLOCKS_PER_SEC;
+        printf("%f\n", (double)total_mb / times);
+        total += (double)total_mb / times;
+    }
+
+    printf("\nCBC-Encryption average speed: %f mbps\n\n", total / 10);
+
+    print(long_cipher_1, long_cipher_2, long_cipher_3, long_cipher_4, 64);
+
+    total = 0;
+
+/////////////-----------------------------/////////////////
+
+    printf("\n\nCBC-Decryption:\n");
+    for(i = 0; i < 10; i ++)
+    {
+        op = clock();
+        for(r = 0; r < 1024; r ++)
+            Crypt_Dec_Block_CBC(long_cipher_1, long_cipher_2, long_cipher_3, long_cipher_4, 262144, long_plain_1, long_plain_2, long_plain_3, long_plain_4, key_1, key_2, key_3, key_4);
+        ed = clock();
+        times = (double)(ed - op) / CLOCKS_PER_SEC;
+        printf("%f\n", (double)total_mb / times);
+        total += (double)total_mb / times;
+    }
+
+    printf("\nCBC-Decryption average speed: %f mbps\n\n", total / 10);
+
+    print(long_plain_1, long_plain_2, long_plain_3, long_plain_4, 64);
 
     return 0;
 }

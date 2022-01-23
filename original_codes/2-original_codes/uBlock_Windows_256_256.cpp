@@ -24,8 +24,6 @@ __m128i A3 = _mm_setr_epi8(5,6,7,0,1,2,3,4,13,14,15,8,9,10,11,12);
 
 unsigned char Subkey[25][64];
 
-typedef unsigned long long uint;
-
 unsigned char RC[24][16] = {0x9,0x8,0x8,0xc,0xc,0x9,0xd,0xd,0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
 0xf,0x0,0xe,0x4,0xa,0x1,0xb,0x5,0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
 0x2,0x1,0x3,0x5,0x7,0x0,0x6,0x4,0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
@@ -420,7 +418,7 @@ int Crypt_Dec_Block(unsigned char *input,int in_len, unsigned char *output,int *
 		uBlock_256_Decrypt(input+g*32, output+g*32, 24);
 	}
 	*out_len = in_len - in_len % 32;
-
+	
 	return 0;
 }
 
@@ -513,66 +511,57 @@ int Crypt_Dec_Block_CBC(unsigned char *input,int in_len, unsigned char *output,i
 	return 0;
 }
 
-int main()
+void main()
 {
 	int i, j, r;
 	unsigned char key[32]   = {0x01,0x23,0x45,0x67,0x89,0xAB,0xCD,0xEF,0xFE,0xDC,0xBA,0x98,0x76,0x54,0x32,0x10,0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
 	unsigned char plain[32] = {0x01,0x23,0x45,0x67,0x89,0xAB,0xCD,0xEF,0xFE,0xDC,0xBA,0x98,0x76,0x54,0x32,0x10,0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
 	unsigned char cipher[32], subkey[800];
 
-//	Crypt_Enc_Block(plain, 32, cipher, &j, key, 32);
-//	for(i = 0; i < 32; i++)
-//	{
-//		printf("%02x ", cipher[i]);
-//	}
-//	printf("\n");
-//
-//	Crypt_Dec_Block(cipher, 32, plain, &j, key, 32);
-//	for(i = 0; i < 32; i++)
-//	{
-//		printf("%02x ", plain[i]);
-//	}
-//	printf("\n");
-//
-//	Key_Schedule(key, 32, 0, subkey);
-//	for(i = 0; i < 25; i++)
-//	{
-//		for(j = 0; j < 32; j++)
-//		{
-//			printf("%02x ", subkey[i * 32 + j]);
-//		}
-//		printf("\n");
-//	}
-//
-//	for(r = 1; r <= 24; r++)
-//	{
-//		Crypt_Enc_Block_Round(plain, 32, cipher, &j, key, 32, r);
-//		for(i = 0; i < 32; i++)
-//		{
-//			printf("%02x ", cipher[i]);
-//		}
-//		printf("\n");
-//	}
+	Crypt_Enc_Block(plain, 32, cipher, &j, key, 32);
+	for(i = 0; i < 32; i++)
+	{
+		printf("%02x ", cipher[i]);
+	}
+	printf("\n");
 
-    printf("10000000-round-Cipher:\n");
-    uint op, ed;
-    op = clock();
+	Crypt_Dec_Block(cipher, 32, plain, &j, key, 32);
+	for(i = 0; i < 32; i++)
+	{
+		printf("%02x ", plain[i]);
+	}
+	printf("\n");
+
+	Key_Schedule(key, 32, 0, subkey);
+	for(i = 0; i < 25; i++)
+	{
+		for(j = 0; j < 32; j++)
+		{
+			printf("%02x ", subkey[i * 32 + j]);
+		}
+		printf("\n");
+	}
+
+	for(r = 1; r <= 24; r++)
+	{
+		Crypt_Enc_Block_Round(plain, 32, cipher, &j, key, 32, r);	
+		for(i = 0; i < 32; i++)
+		{
+			printf("%02x ", cipher[i]);
+		}
+		printf("\n");
+	}
 
 	for(r = 0; r < 1000000; r++)
 	{
-		Crypt_Enc_Block(plain, 32, cipher, &j, key, 32);
+		Crypt_Enc_Block(plain, 32, cipher, &j, key, 32);	
 		memcpy(plain, cipher, 32);
 	}
-    ed = clock();
-    uint total_bits = 256000000;
-    double times = (double)(ed - op) / CLOCKS_PER_SEC;
-    printf("%fs\n", times);
-    printf("%f mbps\n", (double)total_bits / (times * 1024 * 1024));
-    printf("cipher:\n");
-    for(r = 0; r < 32; r++)
-    {
-        printf("%02x ", cipher[r]);
-    }
+	for(i = 0; i < 32; i++)
+	{
+		printf("%02x ", cipher[i]);
+	}
+	printf("\n");
 
-	return 0;
+	return;
 }

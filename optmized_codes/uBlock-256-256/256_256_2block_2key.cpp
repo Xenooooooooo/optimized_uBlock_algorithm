@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <ctime>
 #include <immintrin.h>
+#include <cstring>
 
 unsigned char Subkey[25][64];
 
@@ -8,7 +9,7 @@ typedef unsigned long long uint;
 
 #define ARRAY_SIZE_MAX (1024 * 256)
 
-unsigned char long_plain_1[ARRAY_SIZE_MAX] = {0};
+unsigned char long_plain_1[ARRAY_SIZE_MAX] = {1};
 unsigned char long_cipher_1[ARRAY_SIZE_MAX];
 
 unsigned char RC[24][32] = {0x99,0x88,0x88,0xcc,0xcc,0x99,0xdd,0xdd,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,
@@ -179,12 +180,6 @@ inline void uBlock_256_Encrypt(unsigned char *plain, unsigned char *cipher, int 
 
         //after S, merge high low bits together
         //----------------------------------------------------------------------------
-        /*
-        state1=_mm256_slli_epi16(state1,4);
-        state2=_mm256_slli_epi16(state2,4);
-        state1=_mm256_xor_si256(state1,hi_1);
-        state2=_mm256_xor_si256(state2,hi_2);
-         */
         hi_1=_mm256_slli_epi16(hi_1,4);
         hi_2=_mm256_slli_epi16(hi_2,4);
         state1=_mm256_xor_si256(state1,hi_1);
@@ -248,7 +243,7 @@ inline void uBlock_256_Encrypt(unsigned char *plain, unsigned char *cipher, int 
     _mm256_storeu_si256((__m256i*)(cipher+32), hi_1);
 }
 
-inline void uBlock_256_Decrypt2Block(unsigned char *cipher, unsigned char *plain, int round)
+inline void uBlock_256_Decrypt(unsigned char *cipher, unsigned char *plain, int round)
 {
     int i = 0;
 
@@ -401,13 +396,49 @@ inline int Crypt_Dec_Block(unsigned char *input,int in_len, unsigned char *outpu
     uBlock_256_KeySchedule(key);
 
     for (int g = 0; g < in_len / 64; g++)
-        uBlock_256_Decrypt2Block(input+g*64, output+g*64, 24);
+        uBlock_256_Decrypt(input+g*64, output+g*64, 24);
+    return 0;
+}
+
+inline int Crypt_Enc_Block_CBC(unsigned char *input, int in_len, unsigned char *output, unsigned char *key)
+{
+    int g, j;
+    unsigned char iv[64] = {0};
+
+    uBlock_256_KeySchedule(key);
+
+    for (g = 0; g < in_len / 64; g++)
+    {
+        for(j = 0; j < 64; j++)
+            iv[j] ^= input[g * 64 + j];
+        uBlock_256_Encrypt(iv, output+g*64, 24);
+        memcpy(iv, output+g*64, 64);
+    }
+
+    return 0;
+}
+
+inline int Crypt_Dec_Block_CBC(unsigned char *input,int in_len, unsigned char *output, unsigned char *key)
+{
+    int g, j;
+    unsigned char iv[64] = {0};
+
+    uBlock_256_KeySchedule(key);
+
+    for (g = 0; g < in_len / 64; g++)
+    {
+        uBlock_256_Decrypt(input+g*64, output+g*64, 24);
+        for(j = 0; j < 64; j++)
+            iv[j] ^= input[g * 64 + j];
+        memcpy(iv, output+g*64, 64);
+    }
+
     return 0;
 }
 
 
 int main() {
-    int i, j, r;
+    int i, r;
 
     unsigned char key[64] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32,
                              0x10, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
@@ -418,29 +449,6 @@ int main() {
     unsigned char plain_1[64] = {0x01,0x23,0x45,0x67,0x89,0xAB,0xCD,0xEF,0xFE,0xDC,0xBA,0x98,0x76,0x54,0x32,0x10,0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
                                  0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x0f,0x0e,0x0d,0x0c,0x0b,0x0a,0x09,0x08,0x07,0x06,0x05,0x04,0x03,0x02,0x01,0x00};
     unsigned char cipher_1[64];
-
-    Crypt_Enc_Block(plain_1, 64, cipher_1, key);
-
-    printf("cipher1:\n");
-    for(i = 0; i < 32; i++)
-        printf("%02X ", cipher_1[i]);
-    printf("\n");
-    printf("cipher2:\n");
-    for(i = 0; i < 32; i++)
-        printf("%02X ", cipher_1[i+32]);
-    printf("\n");
-    
-    Crypt_Dec_Block(cipher_1, 64, plain_1, key);
-    
-    printf("plain1:\n");
-    for(i = 0; i < 32; i++)
-        printf("%02X ", plain_1[i]);
-    printf("\n");
-    printf("plain2:\n");
-    for(i = 0; i < 32; i++)
-        printf("%02x ", plain_1[i+32]);
-    printf("\n");
-    
 
     printf("\n10000000-round-Encryption:\n");
     uint op, ed, total_bits = 2560000000;
@@ -511,8 +519,8 @@ int main() {
 
     printf("\n10000000-round-Encryption average speed: %f mbps\n\n", total / 10);
 
-    printf("cipher_1_sample:\n");
-    for(i = 0; i < 32; i++)
+    printf("long_cipher_1_sample:\n");
+    for(i = 0; i < 64; i++)
         printf("%02X ", long_cipher_1[i]);
     printf("\n");
 
@@ -532,8 +540,54 @@ int main() {
 
     printf("\n10000000-round-Decryption average speed: %f mbps\n\n", total / 10);
 
-    printf("plain_1_sample:\n");
-    for(i = 0; i < 32; i++)
+    printf("long_plain_1_sample:\n");
+    for(i = 0; i < 64; i++)
+        printf("%02X ", long_plain_1[i]);
+    printf("\n");
+
+    total = 0;
+
+/////////////------------CBC long text test----------/////////////////
+
+    printf("\n\nCBC-Encryption:\n");
+    for(i = 0; i < 10; i ++)
+    {
+        op = clock();
+        for(r = 0; r < 2048; r ++)
+            Crypt_Enc_Block_CBC(long_plain_1, 262144, long_cipher_1, key);
+        ed = clock();
+        times = (double)(ed - op) / CLOCKS_PER_SEC;
+        printf("%f\n", (double)total_mb / times);
+        total += (double)total_mb / times;
+    }
+
+    printf("\nCBC-Encryption average speed: %f mbps\n\n", total / 10);
+
+    printf("long_cipher_1_sample:\n");
+    for(i = 0; i < 64; i++)
+        printf("%02X ", long_cipher_1[i]);
+    printf("\n");
+
+    total = 0;
+
+/////////////-----------------------------/////////////////
+
+    printf("\n\nCBC-Decryption:\n");
+    for(i = 0; i < 10; i ++)
+    {
+        op = clock();
+        for(r = 0; r < 2048; r ++)
+            Crypt_Dec_Block_CBC(long_cipher_1, 262144, long_plain_1, key);
+        ed = clock();
+        times = (double)(ed - op) / CLOCKS_PER_SEC;
+        printf("%f\n", (double)total_mb / times);
+        total += (double)total_mb / times;
+    }
+
+    printf("\nCBC-Decryption average speed: %f mbps\n\n", total / 10);
+
+    printf("long_plain_1_sample:\n");
+    for(i = 0; i < 64; i++)
         printf("%02X ", long_plain_1[i]);
     printf("\n");
 

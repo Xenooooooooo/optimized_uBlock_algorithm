@@ -502,7 +502,6 @@ int main() {
         printf("%02X ", long_plain_1[i]);
     printf("\n");
 
-
     return 0;
 
 }
