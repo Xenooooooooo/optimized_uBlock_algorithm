@@ -373,7 +373,7 @@ inline void uBlock_256_Decrypt(unsigned char *cipher, unsigned char *plain, int 
     state2=_mm256_and_si256(state2,con);
     //----------------------------------------------------------------------------
 
-    hi_2=_mm256_srli_epi16(hi_2,4);
+    hi_1=_mm256_srli_epi16(hi_1,4);
     hi_1 = _mm256_xor_si256(hi_1, hi_2);
     state2=_mm256_slli_epi16(state2,4);
     state1=_mm256_xor_si256(state2,state1);
